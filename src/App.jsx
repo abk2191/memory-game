@@ -6,7 +6,7 @@ function App() {
   const [showNumbers, setShowNumbers] = useState(false);
   const [timerId, setTimerId] = useState(null);
   const [gameActive, setGameActive] = useState(true);
-  const [nextNumber, setNextNumber] = useState(1);
+  const [nextNumber, setNextNumber] = useState(null);
   const [divColors, setDivColors] = useState(Array(9).fill("#ffffff"));
   const [revealedNumbers, setRevealedNumbers] = useState(Array(9).fill(null));
   const [gameWon, setGameWon] = useState(false);
@@ -16,8 +16,18 @@ function App() {
     const saved = localStorage.getItem("bestScore");
     return saved ? parseInt(saved) : 0;
   });
+  const [difficulty, setDifficulty] = useState("medium");
+  const [currentNumbers, setCurrentNumbers] = useState([]);
+  const [memorizeTime, setMemorizeTime] = useState(3);
 
-  const arr = [1, 2, 3, 4];
+  // Difficulty settings
+  const difficultySettings = {
+    easy: { time: 2.5, count: 3, maxNumber: 50 },
+    medium: { time: 2, count: 4, maxNumber: 100 },
+    hard: { time: 1.5, count: 5, maxNumber: 200 },
+    expert: { time: 1, count: 6, maxNumber: 500 },
+    extreme: { time: 0.8, count: 7, maxNumber: 999 }
+  };
 
   // Save best score to localStorage
   useEffect(() => {
@@ -26,11 +36,32 @@ function App() {
     }
   }, [bestScore]);
 
+  const generateRandomNumbers = () => {
+    const settings = difficultySettings[difficulty];
+    const numbers = [];
+    const maxAttempts = 100;
+    let attempts = 0;
+    
+    while (numbers.length < settings.count && attempts < maxAttempts) {
+      const num = Math.floor(Math.random() * settings.maxNumber) + 1;
+      if (!numbers.includes(num)) {
+        numbers.push(num);
+      }
+      attempts++;
+    }
+    
+    // Sort numbers in ascending order for sequential gameplay
+    numbers.sort((a, b) => a - b);
+    return numbers;
+  };
+
   const assignRandomNumbers = () => {
     // Reset game state
     setGameActive(true);
     setGameWon(false);
-    setNextNumber(1);
+    const numbers = generateRandomNumbers();
+    setCurrentNumbers(numbers);
+    setNextNumber(numbers[0]);
     setDivColors(Array(9).fill("#ffffff"));
     setRevealedNumbers(Array(9).fill(null));
     setScore(0);
@@ -41,7 +72,7 @@ function App() {
     }
 
     // Create a copy of the array to shuffle
-    const numbersToAssign = [...arr];
+    const numbersToAssign = [...numbers];
 
     // Shuffle the array randomly
     for (let i = numbersToAssign.length - 1; i > 0; i--) {
@@ -74,13 +105,16 @@ function App() {
 
     setDivValues(newValues);
 
-    // Show the numbers for 3 seconds
+    // Show the numbers for memorization time
     setShowNumbers(true);
 
-    // Set timer to hide numbers after 3 seconds
+    // Set timer to hide numbers based on difficulty
+    const memorizeTimeMs = difficultySettings[difficulty].time * 1000;
+    setMemorizeTime(difficultySettings[difficulty].time);
+    
     const newTimerId = setTimeout(() => {
       setShowNumbers(false);
-    }, 3000);
+    }, memorizeTimeMs);
 
     setTimerId(newTimerId);
   };
@@ -121,18 +155,30 @@ function App() {
       // Update score
       setScore((prev) => prev + 1);
 
+      // Find current index in numbers array
+      const currentIndex = currentNumbers.indexOf(nextNumber);
+      
       // Check if game is complete (all numbers found)
-      if (nextNumber === 4) {
+      if (currentIndex === currentNumbers.length - 1) {
         setGameWon(true);
         setGameActive(false);
 
-        // Update best score
+        // Update best score based on difficulty and count
         const newScore = score + 1;
-        if (newScore > bestScore) {
-          setBestScore(newScore);
+        const difficultyMultiplier = {
+          easy: 1,
+          medium: 2,
+          hard: 3,
+          expert: 5,
+          extreme: 8
+        };
+        const finalScore = newScore * difficultyMultiplier[difficulty];
+        
+        if (finalScore > bestScore) {
+          setBestScore(finalScore);
         }
       } else {
-        setNextNumber((prev) => prev + 1);
+        setNextNumber(currentNumbers[currentIndex + 1]);
       }
     } else {
       // Wrong guess
@@ -160,6 +206,17 @@ function App() {
     return "";
   };
 
+  const getDifficultyColor = () => {
+    const colors = {
+      easy: "#4caf50",
+      medium: "#ff9800",
+      hard: "#f44336",
+      expert: "#9c27b0",
+      extreme: "#000000"
+    };
+    return colors[difficulty];
+  };
+
   return (
     <div className="app">
       <div className="game-container">
@@ -167,12 +224,12 @@ function App() {
         <div className="game-header">
           <h1 className="game-title">
             <span className="title-icon">🎯</span>
-            Memory Match
+            Memory Match Extreme
           </h1>
           <div className="stats">
             <div className="stat-card">
               <span className="stat-label">Score</span>
-              <span className="stat-value">{score}/4</span>
+              <span className="stat-value">{score}/{currentNumbers.length || 4}</span>
             </div>
             <div className="stat-card">
               <span className="stat-label">Best</span>
@@ -181,12 +238,51 @@ function App() {
           </div>
         </div>
 
+        {/* Difficulty Selector */}
+        <div className="difficulty-selector">
+          <button
+            className={`difficulty-btn ${difficulty === "easy" ? "active" : ""}`}
+            onClick={() => setDifficulty("easy")}
+            style={{ borderColor: difficulty === "easy" ? "#4caf50" : "#ddd" }}
+          >
+            Easy (3 nums, 2.5s)
+          </button>
+          <button
+            className={`difficulty-btn ${difficulty === "medium" ? "active" : ""}`}
+            onClick={() => setDifficulty("medium")}
+            style={{ borderColor: difficulty === "medium" ? "#ff9800" : "#ddd" }}
+          >
+            Medium (4 nums, 2s)
+          </button>
+          <button
+            className={`difficulty-btn ${difficulty === "hard" ? "active" : ""}`}
+            onClick={() => setDifficulty("hard")}
+            style={{ borderColor: difficulty === "hard" ? "#f44336" : "#ddd" }}
+          >
+            Hard (5 nums, 1.5s)
+          </button>
+          <button
+            className={`difficulty-btn ${difficulty === "expert" ? "active" : ""}`}
+            onClick={() => setDifficulty("expert")}
+            style={{ borderColor: difficulty === "expert" ? "#9c27b0" : "#ddd" }}
+          >
+            Expert (6 nums, 1s)
+          </button>
+          <button
+            className={`difficulty-btn ${difficulty === "extreme" ? "active" : ""}`}
+            onClick={() => setDifficulty("extreme")}
+            style={{ borderColor: difficulty === "extreme" ? "#000000" : "#ddd" }}
+          >
+            Extreme (7 nums, 0.8s)
+          </button>
+        </div>
+
         {/* Game Status */}
         <div className={`game-status ${shake ? "shake" : ""}`}>
           {gameWon ? (
             <div className="status-message success">
               <span>🎉</span>
-              <span>Perfect Memory! You Won!</span>
+              <span>Perfect Memory! You Won! +{difficultySettings[difficulty].count * (difficulty === "easy" ? 1 : difficulty === "medium" ? 2 : difficulty === "hard" ? 3 : difficulty === "expert" ? 5 : 8)} points!</span>
               <span>🏆</span>
             </div>
           ) : !gameActive && !showNumbers && !gameWon ? (
@@ -198,14 +294,14 @@ function App() {
           ) : showNumbers ? (
             <div className="status-message info">
               <span>🧠</span>
-              <span>Memorize the positions...</span>
-              <div className="timer-bar"></div>
+              <span>Memorize {currentNumbers.length} numbers... ({memorizeTime}s)</span>
+              <div className="timer-bar" style={{ animationDuration: `${memorizeTime}s` }}></div>
             </div>
-          ) : gameActive && nextNumber <= 4 ? (
+          ) : gameActive && nextNumber !== null ? (
             <div className="status-message playing">
               <span>🔍</span>
               <span>Find number</span>
-              <span className="next-number">{nextNumber}</span>
+              <span className="next-number" style={{ fontSize: "24px", fontWeight: "bold" }}>{nextNumber}</span>
             </div>
           ) : null}
         </div>
@@ -227,6 +323,7 @@ function App() {
                 {getDisplayValue(index) && (
                   <span
                     className={`card-number ${showNumbers ? "preview" : "revealed"}`}
+                    style={{ fontSize: getDisplayValue(index) > 99 ? "20px" : "28px" }}
                   >
                     {getDisplayValue(index)}
                   </span>
@@ -242,18 +339,19 @@ function App() {
           <button
             className={`new-game-btn ${showNumbers || !gameActive || gameWon ? "pulse" : ""}`}
             onClick={assignRandomNumbers}
+            style={{ backgroundColor: getDifficultyColor() }}
           >
             <span className="btn-icon">🔄</span>
-            {showNumbers ? "Resetting..." : "New Game"}
+            {showNumbers ? "Memorizing..." : "New Game"}
           </button>
 
           {!gameActive && !gameWon && !showNumbers && (
             <p className="hint-text">Click "New Game" to try again!</p>
           )}
 
-          {!showNumbers && gameActive && !gameWon && nextNumber <= 4 && (
+          {!showNumbers && gameActive && !gameWon && nextNumber !== null && (
             <p className="hint-text">
-              Click on the div containing {nextNumber}
+              Find the number: {nextNumber}
             </p>
           )}
         </div>
@@ -261,20 +359,20 @@ function App() {
         {/* Instructions */}
         <div className="instructions">
           <div className="instruction-item">
-            <span className="instruction-icon">👁️</span>
-            <span>Remember number positions (3 seconds)</span>
+            <span className="instruction-icon">🎲</span>
+            <span>Random numbers from 1-999 (difficulty based)</span>
+          </div>
+          <div className="instruction-item">
+            <span className="instruction-icon">⏱️</span>
+            <span>Memorize time: {difficultySettings[difficulty].time} seconds</span>
           </div>
           <div className="instruction-item">
             <span className="instruction-icon">1️⃣</span>
-            <span>Click numbers in order: 1 → 2 → 3 → 4</span>
+            <span>Click numbers in ascending order</span>
           </div>
           <div className="instruction-item">
-            <span className="instruction-icon">✅</span>
-            <span>Correct = Green & Permanent</span>
-          </div>
-          <div className="instruction-item">
-            <span className="instruction-icon">❌</span>
-            <span>Wrong = Game Over</span>
+            <span className="instruction-icon">⭐</span>
+            <span>Higher difficulty = More points!</span>
           </div>
         </div>
       </div>
